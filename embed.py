@@ -1,11 +1,10 @@
 """Scar embeddings.
 
-Novita serves an OpenAI-compatible /embeddings endpoint even though no embedding
-model is listed in /models. `baai/bge-m3` returns 1024 dims, which is why
-config.EMBED_DIMS is 1024 rather than the 1536 an OpenAI model would give.
+OpenRouter serves an OpenAI-compatible /embeddings endpoint, so `text-embedding-3-small`
+(natively 1536 dims) runs off the same key as the chat models.
 
 The backend is chosen once, at import. A remote failure raises instead of quietly
-returning a hash vector: hash vectors and bge-m3 vectors live in different spaces,
+returning a hash vector: hash vectors and model vectors live in different spaces,
 so mixing them inside db.scars would break retrieval with no visible symptom.
 """
 import hashlib

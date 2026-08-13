@@ -12,16 +12,18 @@ unrelated task B, with the same model and the same tools.
 ```bash
 python3.11 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
-cp .env.example .env      # fill in MONGO_URI, OPENROUTER_API_KEY, OPENAI_API_KEY
+cp .env.example .env      # fill in MONGO_URI, LLM_API_KEY
 ```
 
 Needs the `sample_mflix` sample dataset loaded in the same Atlas cluster.
 
-`OPENAI_API_KEY` is optional but recommended: OpenRouter serves no embeddings endpoint, so
-scar vectors come from OpenAI's `text-embedding-3-small`. Without it, `embed.py` falls back
-to a local lexical hash that scores a paraphrased scar at ~0.55 cosine instead of ~0.9,
-which means near-duplicate scars stop deduping. Vectors from the two backends are not
-comparable — if you switch, drop `db.scars`.
+One OpenRouter key covers everything: it serves both chat completions and `/embeddings`, so
+the agent (`claude-sonnet-4.5`), the judge (`claude-haiku-4.5`) and scar vectors
+(`text-embedding-3-small`, 1536 dims) all run off `LLM_API_KEY`.
+
+Vectors from different embedding models are not comparable. If you change `EMBED_MODEL`,
+re-embed `db.scars` — `ensure_vector_index()` rebuilds the Atlas index when
+`EMBED_DIMS` changes, but it cannot fix vectors already written in another model's space.
 
 ## Components
 

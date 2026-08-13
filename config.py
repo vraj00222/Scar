@@ -23,34 +23,32 @@ _load_env()
 
 MONGO_URI = os.environ.get("MONGO_URI", "")
 
-# Provider-neutral: any OpenAI-compatible chat-completions endpoint. Currently Novita.
+# Provider-neutral: any OpenAI-compatible chat-completions endpoint. Currently OpenRouter,
+# which also serves /embeddings, so chat and vectors run off this one key.
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
-LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.novita.ai/v3/openai")
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://openrouter.ai/api/v1")
 
 DB_NAME = "scar"
 MFLIX_DB = "sample_mflix"
 
 # Pinned for the life of the demo. If these change, the demo proves nothing.
-# Both verified live against Novita: the agent emits well-formed tool_calls across
-# multiple turns, and the judge returns bare parseable JSON that actually discriminates.
-AGENT_MODEL = "deepseek/deepseek-v3.2"
-JUDGE_MODEL = "meta-llama/llama-3.1-8b-instruct"
+AGENT_MODEL = "anthropic/claude-sonnet-4.5"
+JUDGE_MODEL = "anthropic/claude-haiku-4.5"
 
-# Novita serves /embeddings even though no embedding model appears in /models.
-# bge-m3 is 1024-dim; nothing on this provider offers 1536.
-EMBED_MODEL = "baai/bge-m3"
+EMBED_MODEL = "openai/text-embedding-3-small"
 
 MAX_STEPS = 12
 TOOL_TIMEOUT_MS = 15_000
 MAX_DOCS_TO_MODEL = 50
 
-EMBED_DIMS = 1024
+EMBED_DIMS = 1536
 VECTOR_INDEX = "scar_vec"
 SCAR_TOP_K = 3
-# Measured on bge-m3 against this database's lessons: a genuine paraphrase of the same
-# lesson scores ~0.90, two genuinely different lessons ~0.62. The 0.92 this was
-# originally set to sat above the paraphrase band, so nothing ever deduped.
-SCAR_DEDUPE_COSINE = 0.88
+# Measured on text-embedding-3-small against this database's lessons: paraphrases of the
+# same lesson land at 0.63-0.80, genuinely different lessons at 0.34-0.53. This sits in
+# the gap. The 0.92 from the original spec is far above the paraphrase band, so it would
+# have deduped nothing and let four copies of one lesson crowd out the top-3 retrieval.
+SCAR_DEDUPE_COSINE = 0.58
 THRASH_LIMIT = 3  # identical pipeline submitted this many times forces a halt
 
 
