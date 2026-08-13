@@ -277,7 +277,8 @@ def execute(task, mode, ui):
 
     result = {"run_id": run_id, "verdict": verdict, "reason": reason, "mode": mode,
               "steps_taken": steps_taken, "median": median, "task_id": task["task_id"],
-              "scars_used": scars_used, "promoted": promoted}
+              "scars_used": scars_used, "promoted": promoted,
+              "writer_errors": writer.errors}
     ui("verdict", result)
     return result
 

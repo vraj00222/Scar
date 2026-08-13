@@ -101,6 +101,9 @@ class StepWriter:
     def __init__(self, run_id):
         self.run_id = run_id
         self.idx = 0
+        # Recorded rather than printed: compare.py runs under rich.Live, where a
+        # stray write to stdout corrupts the whole split-pane display.
+        self.errors = []
         self._q = queue.Queue()
         self._thread = threading.Thread(target=self._drain, daemon=True)
         self._thread.start()
@@ -127,7 +130,7 @@ class StepWriter:
                     return
                 steps.insert_one(doc)
             except Exception as exc:
-                print(f"[step writer] dropped step: {exc}")
+                self.errors.append(f"{type(exc).__name__}: {exc}")
             finally:
                 self._q.task_done()
 

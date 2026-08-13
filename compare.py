@@ -5,6 +5,7 @@ the first token.
 """
 import argparse
 import json
+import math
 import random
 import sys
 import threading
@@ -62,23 +63,23 @@ class Column:
         self.add(f"── step {p['n']}/{p['max']}", "bright_black")
 
     def on_thought(self, p):
-        self.add(_clip(p["text"], 300), "bright_black")
+        self.add(_clip(p["text"], 200), "bright_black")
 
     def on_final(self, p):
-        self.add(_clip(p["text"], 400), "white")
+        self.add(_clip(p["text"], 240), "white")
 
     def on_tool_call(self, p):
         self.add(f"→ run_pipeline({p['collection']})", "yellow")
         body = json.dumps(p["pipeline"], separators=(",", ":")) if p["pipeline"] is not None \
             else str(p["raw"])
-        self.add(f"  {_clip(body, 400)}", "bright_black")
+        self.add(f"  {_clip(body, 160)}", "bright_black")
 
     def on_tool_result(self, p):
         if p.get("error"):
-            self.add(f"✗ {_clip(p['error'], 200)}", "red")
+            self.add(f"✗ {_clip(p['error'], 160)}", "red")
         else:
             self.add(f"✓ {p['n']} document(s)", "green")
-            self.add(f"  {_clip(json.dumps(agent.jsonable(p['docs'][:2])), 300)}", "bright_black")
+            self.add(f"  {_clip(json.dumps(agent.jsonable(p['docs'][:2])), 160)}", "bright_black")
 
     def on_halt(self, p):
         self.add(f"HALTED: {p['reason']}", "bold red")
@@ -92,12 +93,26 @@ class Column:
         if p["promoted"]:
             self.add(f"promoted {len(p['promoted'])} candidate → active", "bold green")
 
-    def render(self, height):
+    def render(self, budget, width):
+        """Keep the pane inside `budget` PHYSICAL rows.
+
+        Counting logical lines is not enough: at half terminal width a single
+        pipeline line wraps into many rows, so the panel outgrew the screen and
+        made Live scroll instead of repaint.
+        """
         with self.lock:
-            visible = self.lines[-height:]
+            snapshot = list(self.lines)
+        chosen, used = [], 0
+        for text in reversed(snapshot):
+            cost = max(1, math.ceil(len(text.plain) / width)) if text.plain else 1
+            if chosen and used + cost > budget:
+                break
+            chosen.append(text)
+            used += cost
+        chosen.reverse()
         head = Text.assemble(("model  ", "bright_black"), (config.AGENT_MODEL, "bold white"),
                              ("\nmode   ", "bright_black"), (self.mode.upper(), self.style))
-        body = Group(head, Text("─" * 3, style="bright_black"), *visible)
+        body = Group(head, Text("─" * 3, style="bright_black"), *chosen)
         border = self.style if self.result is None else (
             "green" if self.result["verdict"] == "pass" else "red")
         return Panel(body, title=f"[{self.style}]{self.mode.upper()}[/]", border_style=border)
@@ -149,11 +164,12 @@ def main():
         for thread in threads:
             thread.start()
         while True:
-            height = max(8, console.size.height - 14)
+            budget = max(8, console.size.height - 12)
+            width = max(20, console.size.width // 2 - 6)
             grid = Table.grid(expand=True, padding=(0, 1))
             grid.add_column(ratio=1)
             grid.add_column(ratio=1)
-            grid.add_row(cold.render(height), warm.render(height))
+            grid.add_row(cold.render(budget, width), warm.render(budget, width))
             live.update(grid)
             if cold.done and warm.done:
                 break
@@ -173,6 +189,10 @@ def main():
                         get(cold.result) if cold.result else "—",
                         get(warm.result) if warm.result else "—")
     console.print(summary)
+
+    for column in (cold, warm):
+        for err in (column.result or {}).get("writer_errors", []):
+            console.print(f"[red]{column.mode} step writer dropped a step: {err}[/]")
 
     if cold.result and warm.result:
         c, w = cold.result, warm.result

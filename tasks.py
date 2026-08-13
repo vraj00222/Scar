@@ -63,6 +63,29 @@ def verify(docs, check):
         if len(set(seen)) != len(seen):
             return False, f"'{field}' has duplicate values across documents"
 
+    # Ground truth. Shape checks alone cannot catch an answer that is well-formed and
+    # wrong, which is the only kind of failure a competent model does not notice and
+    # repair on its own: nothing in a plausible number looks broken.
+    expect = check.get("expect")
+    if expect:
+        key, values = expect["key"], expect["values"]
+        got = {doc[key]: doc for doc in docs}
+        for want_key in sorted(values):
+            if want_key not in got:
+                return False, f"no document for '{key}'={want_key}"
+            for field, want in values[want_key].items():
+                actual = got[want_key][field]
+                if isinstance(want, float):
+                    if abs(actual - want) > 0.01:
+                        return False, (f"'{key}'={want_key}: '{field}' is {actual}, "
+                                       f"the correct value is {want}")
+                elif actual != want:
+                    short = want - actual if _is_num(actual) else None
+                    detail = "" if short is None else (
+                        f" — {abs(short)} {'too few' if short > 0 else 'too many'}")
+                    return False, (f"'{key}'={want_key}: '{field}' is {actual}, "
+                                   f"the correct value is {want}{detail}")
+
     if "sort" in check:
         field, direction = check["sort"]
         vals = [doc[field] for doc in docs]
@@ -192,6 +215,30 @@ TASK_LIST = [
             "ranges": {"avg_rating": (1.0, 10.0), "movie_count": (15, 10_000)},
             "distinct": ["actor"],
             "sort": ("avg_rating", "desc"),
+        },
+    },
+    {
+        # The counts below are ground truth, computed directly from the collection.
+        # 35 documents store `year` as a string ("2010è" and similar), so a numeric
+        # range match drops them and returns a total that looks entirely reasonable.
+        # Nothing about 866 suggests the answer should have been 870.
+        "task_id": "movies_per_year",
+        "family": "exact_count",
+        "question": (
+            "In the `movies` collection, count how many movies were released in each year from "
+            "2010 through 2013. Every movie in the collection with one of those release years "
+            "must be counted. Return exactly 4 documents, each with two fields: `year` (number, "
+            "e.g. 2010) and `count` (number), sorted by `year` ascending."
+        ),
+        "check": {
+            "n_docs": 4,
+            "fields": {"year": "num", "count": "num"},
+            "allowed": {"year": {2010, 2011, 2012, 2013}},
+            "distinct": ["year"],
+            "expect": {"key": "year", "values": {
+                2010: {"count": 870}, 2011: {"count": 895},
+                2012: {"count": 958}, 2013: {"count": 1105}}},
+            "sort": ("year", "asc"),
         },
     },
     {
