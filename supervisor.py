@@ -4,6 +4,7 @@ Watches db.steps for inserts and scores each one with a single cheap judge call.
 Writing an eval with verdict "halt" is the flag: agent.py polls for it between
 turns and stops itself.
 """
+import argparse
 import json
 import re
 import sys
@@ -137,6 +138,7 @@ def render(step, result, forced):
 
 
 def main():
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     config.require_env()
     db.ensure_indexes()
     client = OpenAI(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY, timeout=60.0)

@@ -1,6 +1,7 @@
 """Mongo handles, indexes, and the non-blocking step writer."""
 import queue
 import threading
+import time
 from datetime import datetime, timezone
 
 from pymongo import ASCENDING, MongoClient
@@ -33,28 +34,58 @@ def ensure_indexes():
     scars.create_index([("status", ASCENDING)])
 
 
+def _vector_dims(index):
+    for field in (index.get("latestDefinition") or {}).get("fields", []):
+        if field.get("type") == "vector":
+            return field.get("numDimensions")
+    return None
+
+
+def _create_vector_index():
+    scars.create_search_index(SearchIndexModel(
+        name=config.VECTOR_INDEX,
+        type="vectorSearch",
+        definition={"fields": [
+            {"type": "vector", "path": "embedding",
+             "numDimensions": config.EMBED_DIMS, "similarity": "cosine"},
+            {"type": "filter", "path": "status"},
+        ]},
+    ))
+
+
 def ensure_vector_index():
     """Create the Atlas Vector Search index on scars.embedding. Returns its state.
 
     Atlas takes ~30s to build it. Retrieval falls back to in-process cosine until
     then, so nothing hard-blocks on this.
+
+    An index whose numDimensions no longer matches config.EMBED_DIMS can never match
+    the vectors we write, and Atlas gives no visible symptom, so it is dropped and
+    rebuilt rather than reported as fine.
     """
     try:
-        existing = {i["name"] for i in scars.list_search_indexes()}
+        existing = {i["name"]: i for i in scars.list_search_indexes()}
     except Exception:
         return "unavailable"
-    if config.VECTOR_INDEX in existing:
-        return "ready"
+
+    current = existing.get(config.VECTOR_INDEX)
+    if current is not None:
+        dims = _vector_dims(current)
+        if dims == config.EMBED_DIMS:
+            return "ready" if current.get("queryable") else "building"
+        try:
+            scars.drop_search_index(config.VECTOR_INDEX)
+            for _ in range(30):
+                time.sleep(2)
+                if config.VECTOR_INDEX not in {i["name"] for i in scars.list_search_indexes()}:
+                    break
+            else:
+                return f"stale {dims}d index would not drop; drop {config.VECTOR_INDEX} by hand"
+        except Exception as exc:
+            return f"failed dropping stale {dims}d index: {exc}"
+
     try:
-        scars.create_search_index(SearchIndexModel(
-            name=config.VECTOR_INDEX,
-            type="vectorSearch",
-            definition={"fields": [
-                {"type": "vector", "path": "embedding",
-                 "numDimensions": config.EMBED_DIMS, "similarity": "cosine"},
-                {"type": "filter", "path": "status"},
-            ]},
-        ))
+        _create_vector_index()
     except Exception as exc:
         return f"failed: {exc}"
     return "building"

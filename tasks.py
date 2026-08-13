@@ -14,7 +14,14 @@ def _is_num(v):
 
 
 def verify(docs, check):
-    """Return (ok, reason). Pure code, no model in the loop."""
+    """Return (ok, reason). Pure code, no model in the loop.
+
+    `distinct` is only ever applied to grouping keys (genre, decade, director),
+    where a repeat means the agent failed to group. It is deliberately NOT applied
+    to `title`: sample_mflix genuinely stores some films twice (there are two
+    separate "The Shawshank Redemption" documents), so a correct top-N answer can
+    legitimately repeat a title.
+    """
     if not isinstance(docs, list):
         return False, "result is not a list of documents"
     if not docs:
@@ -80,7 +87,6 @@ TASK_LIST = [
             "n_docs": 5,
             "fields": {"title": "str", "rating": "num"},
             "ranges": {"rating": (1.0, 10.0)},
-            "distinct": ["title"],
             "sort": ("rating", "desc"),
         },
     },
@@ -96,7 +102,6 @@ TASK_LIST = [
             "n_docs": 5,
             "fields": {"title": "str", "rating": "num"},
             "ranges": {"rating": (1.0, 10.0)},
-            "distinct": ["title"],
             "sort": ("rating", "desc"),
         },
     },
@@ -161,7 +166,6 @@ TASK_LIST = [
             "n_docs": 5,
             "fields": {"title": "str", "runtime": "num"},
             "ranges": {"runtime": (60, 10_000)},
-            "distinct": ["title"],
             "sort": ("runtime", "desc"),
         },
     },

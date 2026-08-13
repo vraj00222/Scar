@@ -1,13 +1,12 @@
-"""1536-dim embeddings for scars.
+"""Scar embeddings.
 
-OpenRouter does not serve an embeddings endpoint, so this reaches OpenAI directly
-for `text-embedding-3-small` (natively 1536 dims) when OPENAI_API_KEY is set.
+Novita serves an OpenAI-compatible /embeddings endpoint even though no embedding
+model is listed in /models. `baai/bge-m3` returns 1024 dims, which is why
+config.EMBED_DIMS is 1024 rather than the 1536 an OpenAI model would give.
 
-Without that key it falls back to a deterministic character-trigram hash vector so
-the system still runs keyless. The fallback is lexical, not semantic: it is good
-enough to catch near-duplicate scar text, and noticeably worse at matching a task
-to a scar that is worded differently. Pick one backend and stay on it — vectors
-from the two are not comparable, so switching means dropping db.scars.
+The backend is chosen once, at import. A remote failure raises instead of quietly
+returning a hash vector: hash vectors and bge-m3 vectors live in different spaces,
+so mixing them inside db.scars would break retrieval with no visible symptom.
 """
 import hashlib
 import math
@@ -17,18 +16,31 @@ from openai import OpenAI
 
 import config
 
-_client = OpenAI(api_key=config.OPENAI_API_KEY) if config.OPENAI_API_KEY else None
-BACKEND = f"openai:{config.EMBED_MODEL}" if _client else "local:char-trigram-hash"
+_client = OpenAI(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY,
+                 timeout=60.0) if config.LLM_API_KEY else None
+BACKEND = f"{config.EMBED_MODEL} ({config.EMBED_DIMS}d)" if _client \
+    else f"local:char-trigram-hash ({config.EMBED_DIMS}d)"
 
 
 def embed(text):
     text = (text or "").strip()
     if not text:
         return [0.0] * config.EMBED_DIMS
-    if _client:
-        result = _client.embeddings.create(model=config.EMBED_MODEL, input=text[:8000])
-        return result.data[0].embedding
-    return _hash_embed(text)
+    if _client is None:
+        return _hash_embed(text)
+    last = None
+    for _ in range(2):
+        try:
+            result = _client.embeddings.create(model=config.EMBED_MODEL, input=text[:8000])
+            vector = result.data[0].embedding
+            if len(vector) != config.EMBED_DIMS:
+                raise RuntimeError(
+                    f"{config.EMBED_MODEL} returned {len(vector)} dims, "
+                    f"config.EMBED_DIMS is {config.EMBED_DIMS}")
+            return vector
+        except Exception as exc:
+            last = exc
+    raise RuntimeError(f"embedding failed: {type(last).__name__}: {last}")
 
 
 def _hash_embed(text):

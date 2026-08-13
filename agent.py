@@ -103,6 +103,7 @@ def retrieve_scars(question, k=None):
     k = k or config.SCAR_TOP_K
     vector = embed.embed(question)
     wanted = ["active", "candidate"]
+    hits = []
     try:
         hits = list(db.scars.aggregate([
             {"$vectorSearch": {
@@ -111,14 +112,23 @@ def retrieve_scars(question, k=None):
             {"$project": {"text": 1, "trigger": 1, "situation": 1, "status": 1,
                           "born_from_run": 1, "score": {"$meta": "vectorSearchScore"}}},
         ]))
-        return hits, "$vectorSearch"
     except PyMongoError:
-        # Index still building, or not an Atlas deployment. The scar set is small.
-        pool = list(db.scars.find({"status": {"$in": wanted}}))
-        for scar in pool:
-            scar["score"] = embed.cosine(vector, scar.get("embedding") or [])
-        pool.sort(key=lambda s: -s["score"])
-        return pool[:k], "local cosine"
+        hits = []
+
+    if hits:
+        return hits, "$vectorSearch"
+
+    # An empty result does not mean an empty scar pool. Atlas Search is eventually
+    # consistent, so a scar born seconds ago is not indexed yet, and a missing index
+    # can come back empty rather than raising. Falling back only on an exception let
+    # warm mode silently run with no scars, which looks exactly like cold mode.
+    pool = list(db.scars.find({"status": {"$in": wanted}}))
+    if not pool:
+        return [], "$vectorSearch"
+    for scar in pool:
+        scar["score"] = embed.cosine(vector, scar.get("embedding") or [])
+    pool.sort(key=lambda s: -s["score"])
+    return pool[:k], "local cosine"
 
 
 def scar_block(scars):
