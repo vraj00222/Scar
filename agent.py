@@ -28,8 +28,7 @@ console = Console()
 
 ALLOWED_COLLECTIONS = {"movies", "comments", "theaters", "users"}
 
-SYSTEM_PROMPT = f"""You are the on-call analytics agent for a streaming platform. Teams send you
-daily data briefs; the catalog lives in a MongoDB database called `sample_mflix`.
+SYSTEM_PROMPT = f"""You are a data analyst agent working against a MongoDB database called `sample_mflix`.
 
 You have exactly one tool: run_pipeline(collection, pipeline_json). It executes a MongoDB
 aggregation pipeline and returns the resulting documents, or an error string.
