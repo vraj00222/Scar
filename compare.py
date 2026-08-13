@@ -9,7 +9,10 @@ import math
 import random
 import sys
 import threading
+import time
 
+from rich import box
+from rich.align import Align
 from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
@@ -24,6 +27,8 @@ import tasks
 
 console = Console()
 
+SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
 
 class Column:
     """Collects a run's events as lines for one side of the split view."""
@@ -35,6 +40,9 @@ class Column:
         self.done = False
         self.result = None
         self.steps = 0
+        self.phase = "starting"
+        self.t0 = time.time()
+        self.t_end = None
         self.lock = threading.Lock()
 
     def add(self, text, style=""):
@@ -49,9 +57,9 @@ class Column:
 
     def on_scars(self, p):
         if not p["scars"]:
-            self.add("no scars available", "bright_black")
+            self.add("∅ no memory — starting from zero", "bold bright_black")
             return
-        self.add(f"{len(p['scars'])} scar(s) injected before first token:", "bold cyan")
+        self.add(f"🧬 {len(p['scars'])} SCARS INJECTED BEFORE FIRST TOKEN", "bold black on cyan")
         for scar in p["scars"]:
             tag = "active" if scar.get("status") == "active" else "cand"
             self.add(f"  [{tag}] {scar['text']}", "cyan")
@@ -59,6 +67,7 @@ class Column:
 
     def on_turn(self, p):
         self.steps = p["n"]
+        self.phase = "thinking"
         self.add("")
         self.add(f"── step {p['n']}/{p['max']}", "bright_black")
 
@@ -66,32 +75,37 @@ class Column:
         self.add(_clip(p["text"], 200), "bright_black")
 
     def on_final(self, p):
+        self.phase = "answering"
         self.add(_clip(p["text"], 240), "white")
 
     def on_tool_call(self, p):
+        self.phase = "querying mongo"
         self.add(f"→ run_pipeline({p['collection']})", "yellow")
         body = json.dumps(p["pipeline"], separators=(",", ":")) if p["pipeline"] is not None \
             else str(p["raw"])
         self.add(f"  {_clip(body, 160)}", "bright_black")
 
     def on_tool_result(self, p):
+        self.phase = "thinking"
         if p.get("error"):
-            self.add(f"✗ {_clip(p['error'], 160)}", "red")
+            self.add(f"✗ {_clip(p['error'], 160)}", "bold red")
         else:
             self.add(f"✓ {p['n']} document(s)", "green")
             self.add(f"  {_clip(json.dumps(agent.jsonable(p['docs'][:2])), 160)}", "bright_black")
 
     def on_halt(self, p):
-        self.add(f"HALTED: {p['reason']}", "bold red")
+        self.add(f"🛑 HALTED BY SUPERVISOR: {p['reason']}", "bold white on red")
 
     def on_verdict(self, p):
         self.result = p
-        color = "bold green" if p["verdict"] == "pass" else "bold red"
+        self.t_end = time.time()
+        won = p["verdict"] == "pass"
         self.add("")
-        self.add(f"{p['verdict'].upper()} in {p['steps_taken']} steps", color)
+        self.add(f"  {'✓ PASS' if won else '✗ FAIL'} in {p['steps_taken']} steps  ",
+                 "bold white on green" if won else "bold white on red")
         self.add(_clip(p["reason"], 300), "white")
         if p["promoted"]:
-            self.add(f"promoted {len(p['promoted'])} candidate → active", "bold green")
+            self.add(f"⬆ promoted {len(p['promoted'])} candidate → active", "bold black on green")
 
     def render(self, budget, width):
         """Keep the pane inside `budget` PHYSICAL rows.
@@ -113,9 +127,22 @@ class Column:
         head = Text.assemble(("model  ", "bright_black"), (config.AGENT_MODEL, "bold white"),
                              ("\nmode   ", "bright_black"), (self.mode.upper(), self.style))
         body = Group(head, Text("─" * 3, style="bright_black"), *chosen)
-        border = self.style if self.result is None else (
-            "green" if self.result["verdict"] == "pass" else "red")
-        return Panel(body, title=f"[{self.style}]{self.mode.upper()}[/]", border_style=border)
+
+        if self.result is None:
+            frame = SPINNER[int(time.time() * 10) % len(SPINNER)]
+            title = f"[{self.style}]{frame} {self.mode.upper()} · {self.phase}[/]"
+            border = self.style
+        else:
+            won = self.result["verdict"] == "pass"
+            title = (f"[bold white on green] ✓ {self.mode.upper()} · PASS [/]" if won
+                     else f"[bold white on red] ✗ {self.mode.upper()} · FAIL [/]")
+            border = "green" if won else "red"
+
+        elapsed = (self.t_end or time.time()) - self.t0
+        bar = "▰" * self.steps + "▱" * (config.MAX_STEPS - self.steps)
+        subtitle = (f"[{self.style}]{bar}[/] [bright_black]{self.steps}/{config.MAX_STEPS}"
+                    f" · {elapsed:.0f}s[/]")
+        return Panel(body, title=title, subtitle=subtitle, border_style=border)
 
 
 def _clip(text, n):
@@ -142,7 +169,8 @@ def main():
         Text.assemble((task["question"], "white"),
                       (f"\n\nmodel {config.AGENT_MODEL}  ·  embeddings {embed.BACKEND}"
                        f"  ·  {available} scar(s) in the pool", "bright_black")),
-        title=f"[bold]SCAR · compare · {task['task_id']}[/]", border_style="bright_black"))
+        title=f"[bold black on white] ⚡ SCAR [/][bold] COLD vs WARM · {task['task_id']}[/]",
+        border_style="bright_black"))
     if available == 0:
         console.print("[yellow]the scar pool is empty — warm will look exactly like cold. "
                       "Run grind.py and reflector.py first.[/]\n")
@@ -197,15 +225,28 @@ def main():
     if cold.result and warm.result:
         c, w = cold.result, warm.result
         if c["verdict"] == "fail" and w["verdict"] == "pass":
-            console.print(Panel(
-                Text(f"Same model, same task, same tools. Cold failed and warm passed.\n"
-                     f"The only difference was {len(w['scars_used'])} scar(s) injected "
-                     f"before the first token.", style="bold green"),
-                title="[bold green]TRANSFER[/]", border_style="green"))
+            lines = Text()
+            lines.append("SAME MODEL · SAME TASK · SAME TOOLS · SAME STEP BUDGET\n\n",
+                         style="bold white")
+            lines.append("   COLD ", style="bold yellow")
+            lines.append(" ✗ FAILED ", style="bold white on red")
+            lines.append("        WARM ", style="bold cyan")
+            lines.append(" ✓ PASSED ", style="bold white on green")
+            lines.append(f"\n\nThe only difference: {len(w['scars_used'])} scars "
+                         f"MongoDB remembered,\ninjected before the first token.",
+                         style="bold green")
+            console.print(Panel(Align.center(lines), box=box.DOUBLE,
+                                title="[bold white on green] ⚡ TRANSFER PROVEN ⚡ [/]",
+                                border_style="bold green", padding=(1, 4)))
         elif c["verdict"] == w["verdict"] and w["steps_taken"] < c["steps_taken"]:
             console.print(Panel(
-                Text(f"Both {w['verdict']}, but warm needed {c['steps_taken'] - w['steps_taken']} "
-                     f"fewer steps.", style="bold cyan"), border_style="cyan"))
+                Align.center(Text(
+                    f"Both {w['verdict']}, but warm needed "
+                    f"{c['steps_taken'] - w['steps_taken']} fewer steps.\n"
+                    f"Memory is a shortcut past every trap cold has to rediscover.",
+                    style="bold cyan")),
+                box=box.DOUBLE, title="[bold cyan] ⚡ FEWER STEPS ⚡ [/]",
+                border_style="cyan", padding=(1, 4)))
     return 0
 
 

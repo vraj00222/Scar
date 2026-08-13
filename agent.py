@@ -349,6 +349,8 @@ class ConsoleUI:
 
     def on_verdict(self, p):
         color = "green" if p["verdict"] == "pass" else "red"
+        console.print(Text(f"  {'✓ PASS' if p['verdict'] == 'pass' else '✗ FAIL'}  ",
+                           style=f"bold white on {color}"))
         grid = Table.grid(padding=(0, 2))
         grid.add_column(style="bright_black", justify="right")
         grid.add_column()
