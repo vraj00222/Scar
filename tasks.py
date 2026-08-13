@@ -154,6 +154,65 @@ TASK_LIST = [
             "sort": ("count", "desc"),
         },
     },
+    # The tasks below deliberately stack several traps in one pipeline. A single
+    # visible trap is not enough to fail this agent: it reads the bad rows in the
+    # tool result and repairs itself within the run. Stacking them means each
+    # rediscovery costs steps, and the 12-step ceiling becomes reachable.
+    # Every range here only enforces a constraint the question already states, so
+    # nothing is hardcoded from the answer.
+    {
+        "task_id": "director_avg_rating",
+        "family": "group_stats",
+        "question": (
+            "In the `movies` collection, among directors who have directed at least 10 movies "
+            "that have a numeric IMDb rating, find the 5 with the highest average IMDb rating. "
+            "Return exactly 5 documents, each with three fields: `director` (string), "
+            "`avg_rating` (number) and `movie_count` (number), sorted by `avg_rating` descending."
+        ),
+        "check": {
+            "n_docs": 5,
+            "fields": {"director": "str", "avg_rating": "num", "movie_count": "num"},
+            "ranges": {"avg_rating": (1.0, 10.0), "movie_count": (10, 10_000)},
+            "distinct": ["director"],
+            "sort": ("avg_rating", "desc"),
+        },
+    },
+    {
+        "task_id": "cast_avg_rating",
+        "family": "group_stats",
+        "question": (
+            "In the `movies` collection, among actors who appear in at least 15 movies that have "
+            "a numeric IMDb rating, find the 5 with the highest average IMDb rating. Return "
+            "exactly 5 documents, each with three fields: `actor` (string), `avg_rating` (number) "
+            "and `movie_count` (number), sorted by `avg_rating` descending."
+        ),
+        "check": {
+            "n_docs": 5,
+            "fields": {"actor": "str", "avg_rating": "num", "movie_count": "num"},
+            "ranges": {"avg_rating": (1.0, 10.0), "movie_count": (15, 10_000)},
+            "distinct": ["actor"],
+            "sort": ("avg_rating", "desc"),
+        },
+    },
+    {
+        "task_id": "top_genre_by_decade",
+        "family": "cross_group",
+        "question": (
+            "In the `movies` collection, for each decade from the 1970s through the 2000s, find "
+            "the single genre with the highest average IMDb rating among movies released in that "
+            "decade, counting only genres with at least 20 rated movies in that decade. Return "
+            "exactly 4 documents, each with three fields: `decade` (number, e.g. 1970), "
+            "`genre` (string) and `avg_rating` (number), sorted by `decade` ascending."
+        ),
+        "check": {
+            "n_docs": 4,
+            "fields": {"decade": "num", "genre": "str", "avg_rating": "num"},
+            "ranges": {"decade": (1970, 2000), "avg_rating": (1.0, 10.0)},
+            "allowed": {"decade": {1970, 1980, 1990, 2000}},
+            "distinct": ["decade"],
+            "sort": ("decade", "asc"),
+        },
+    },
     {
         "task_id": "longest_movies",
         "family": "top_sorted",
