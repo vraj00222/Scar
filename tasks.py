@@ -103,7 +103,8 @@ TASK_LIST = [
         "task_id": "comedy_top_rated",
         "family": "top_rated",
         "question": (
-            "In the `movies` collection, find the 5 highest-rated Comedy movies by IMDb rating. "
+            "Editorial is publishing a \"Best Comedies\" collection this morning. From the "
+            "`movies` collection, pull the 5 highest-rated Comedy titles by IMDb rating. "
             "Return exactly 5 documents, each with two fields: `title` (string) and `rating` (number)."
         ),
         "check": {
@@ -117,9 +118,10 @@ TASK_LIST = [
         "task_id": "drama_top_rated",
         "family": "top_rated",
         "question": (
-            "In the `movies` collection, find the 5 highest-rated Drama movies that have at least "
-            "1000 IMDb votes. Return exactly 5 documents, each with two fields: `title` (string) "
-            "and `rating` (number)."
+            "The homepage team is refreshing tonight's Drama rail and only wants titles with real "
+            "traction. From the `movies` collection, pull the 5 highest-rated Drama titles with at "
+            "least 1000 IMDb votes. Return exactly 5 documents, each with two fields: `title` "
+            "(string) and `rating` (number)."
         ),
         "check": {
             "n_docs": 5,
@@ -132,8 +134,9 @@ TASK_LIST = [
         "task_id": "avg_rating_by_decade",
         "family": "avg_group",
         "question": (
-            "In the `movies` collection, compute the average IMDb rating of movies for each decade "
-            "from the 1970s through the 2000s. Return exactly 4 documents, each with two fields: "
+            "Quarterly catalog review — leadership wants the quality trend over time. From the "
+            "`movies` collection, compute the average IMDb rating for each decade from the 1970s "
+            "through the 2000s. Return exactly 4 documents, each with two fields: "
             "`decade` (number, e.g. 1970) and `avg_rating` (number), sorted by `decade` ascending."
         ),
         "check": {
@@ -149,8 +152,9 @@ TASK_LIST = [
         "task_id": "avg_rating_by_genre",
         "family": "avg_group",
         "question": (
-            "In the `movies` collection, compute the average IMDb rating for each of these three "
-            "genres: Action, Drama, Comedy. Return exactly 3 documents, each with two fields: "
+            "Marketing needs genre health numbers for tomorrow's pitch deck. From the `movies` "
+            "collection, compute the average IMDb rating for each of these three genres: Action, "
+            "Drama, Comedy. Return exactly 3 documents, each with two fields: "
             "`genre` (string) and `avg_rating` (number)."
         ),
         "check": {
@@ -165,7 +169,8 @@ TASK_LIST = [
         "task_id": "top_directors",
         "family": "group_count",
         "question": (
-            "In the `movies` collection, find the 5 directors who directed the most movies. "
+            "Licensing wants to know which filmmakers dominate the catalog before renewal talks. "
+            "From the `movies` collection, find the 5 directors with the most titles. "
             "Return exactly 5 documents, each with two fields: `director` (string) and "
             "`count` (number), sorted by `count` descending."
         ),
@@ -187,8 +192,9 @@ TASK_LIST = [
         "task_id": "director_avg_rating",
         "family": "group_stats",
         "question": (
-            "In the `movies` collection, among directors who have directed at least 10 movies "
-            "that have a numeric IMDb rating, find the 5 with the highest average IMDb rating. "
+            "Prep for the awards-season feature. From the `movies` collection, among directors "
+            "who have directed at least 10 movies that have a numeric IMDb rating, find the 5 "
+            "with the highest average IMDb rating. "
             "Return exactly 5 documents, each with three fields: `director` (string), "
             "`avg_rating` (number) and `movie_count` (number), sorted by `avg_rating` descending."
         ),
@@ -204,7 +210,8 @@ TASK_LIST = [
         "task_id": "cast_avg_rating",
         "family": "group_stats",
         "question": (
-            "In the `movies` collection, among actors who appear in at least 15 movies that have "
+            "The talent team is shortlisting faces for the anniversary campaign. From the "
+            "`movies` collection, among actors who appear in at least 15 movies that have "
             "a numeric IMDb rating, find the 5 with the highest average IMDb rating. Return "
             "exactly 5 documents, each with three fields: `actor` (string), `avg_rating` (number) "
             "and `movie_count` (number), sorted by `avg_rating` descending."
@@ -225,9 +232,10 @@ TASK_LIST = [
         "task_id": "movies_per_year",
         "family": "exact_count",
         "question": (
-            "In the `movies` collection, count how many movies were released in each year from "
-            "2010 through 2013. Every movie in the collection with one of those release years "
-            "must be counted. Return exactly 4 documents, each with two fields: `year` (number, "
+            "Annual-report data audit — finance reconciles against these numbers, so every movie "
+            "with one of these release years must be counted. From the `movies` collection, count "
+            "how many movies were released in each year from 2010 through 2013. "
+            "Return exactly 4 documents, each with two fields: `year` (number, "
             "e.g. 2010) and `count` (number), sorted by `year` ascending."
         ),
         "check": {
@@ -245,7 +253,8 @@ TASK_LIST = [
         "task_id": "top_genre_by_decade",
         "family": "cross_group",
         "question": (
-            "In the `movies` collection, for each decade from the 1970s through the 2000s, find "
+            "Building the \"Decades\" landing page — each era gets one flagship genre. From the "
+            "`movies` collection, for each decade from the 1970s through the 2000s, find "
             "the single genre with the highest average IMDb rating among movies released in that "
             "decade, counting only genres with at least 20 rated movies in that decade. Return "
             "exactly 4 documents, each with three fields: `decade` (number, e.g. 1970), "
@@ -264,7 +273,8 @@ TASK_LIST = [
         "task_id": "longest_movies",
         "family": "top_sorted",
         "question": (
-            "In the `movies` collection, find the 5 longest movies by runtime. Return exactly 5 "
+            "Curation is assembling a \"Long Haul\" weekend collection. From the `movies` "
+            "collection, find the 5 longest movies by runtime. Return exactly 5 "
             "documents, each with two fields: `title` (string) and `runtime` (number), sorted by "
             "`runtime` descending."
         ),

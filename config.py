@@ -37,7 +37,9 @@ JUDGE_MODEL = "anthropic/claude-haiku-4.5"
 
 EMBED_MODEL = "openai/text-embedding-3-small"
 
-MAX_STEPS = 12
+# The step budget is a cost budget, identical for cold and warm. Cold spends steps
+# rediscovering traps; warm gets them for free before the first token.
+MAX_STEPS = 8
 TOOL_TIMEOUT_MS = 15_000
 MAX_DOCS_TO_MODEL = 50
 
